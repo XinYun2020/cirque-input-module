@@ -15,6 +15,9 @@
     circular-scroll;
     circular-scroll-radius = <18>;
     circular-scroll-deadzone = <3>;
+    circular-scroll-deadzone-radius = <15>;
+    circular-scroll-direction = "inverted";  // Clockwise = scroll up, counter-clockwise = scroll down
+
 };
 ```
 

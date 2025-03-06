@@ -297,6 +297,14 @@ static void process_circular_scroll(const struct device *dev, int8_t *dx, int8_t
         int16_t abs_x = abs(data->scroll_center_x);
         int16_t abs_y = abs(data->scroll_center_y);
         int16_t distance = abs_x > abs_y ? abs_x + abs_y/2 : abs_y + abs_x/2;
+
+        // Check if we're inside the central deadzone radius
+        if (distance < config->circular_scroll_deadzone_radius) {
+            // Inside central deadzone - no scrolling
+            *dx = 0;
+            *dy = 0;
+            return;
+        }
         
         // If we're outside the minimum radius, process the scroll
         if (distance >= config->circular_scroll_radius) {
@@ -721,6 +729,8 @@ static int pinnacle_pm_action(const struct device *dev, enum pm_device_action ac
 
 #endif // IS_ENABLED(CONFIG_PM_DEVICE)
 
+#define PINNACLE_DIRECTION_INVERTED 1
+
 #define PINNACLE_INST(n)                                                                           \
     static struct pinnacle_data pinnacle_data_##n;                                                 \
     static const struct pinnacle_config pinnacle_config_##n = {                                    \
@@ -748,6 +758,8 @@ static int pinnacle_pm_action(const struct device *dev, enum pm_device_action ac
         .circular_scroll = DT_INST_PROP_OR(n, circular_scroll, false),                             \
         .circular_scroll_radius = DT_INST_PROP_OR(n, circular_scroll_radius, 20),                  \
         .circular_scroll_deadzone = DT_INST_PROP_OR(n, circular_scroll_deadzone, 4),               \
+        .circular_scroll_deadzone_radius = DT_INST_PROP_OR(n, circular_scroll_deadzone_radius, 15), \
+        .circular_scroll_invert_direction = DT_INST_PROP_OR(n, circular_scroll_direction, 0) == PINNACLE_DIRECTION_INVERTED, \
     };                                                                                             \
     PM_DEVICE_DT_INST_DEFINE(n, pinnacle_pm_action);                                               \
     DEVICE_DT_INST_DEFINE(n, pinnacle_init, PM_DEVICE_DT_INST_GET(n), &pinnacle_data_##n,          \
