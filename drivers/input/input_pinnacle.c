@@ -229,6 +229,142 @@ static int pinnacle_era_write(const struct device *dev, const uint16_t addr, uin
     return ret;
 }
 
+
+// Apply sigmoid acceleration to the input delta
+static int8_t apply_sigmoid_acceleration(const struct device *dev, int8_t delta) {
+    const struct pinnacle_config *config = dev->config;
+    struct pinnacle_data *data = dev->data;
+    
+    if (!config->sigmoid_acceleration || abs(delta) < config->acceleration_threshold) {
+        return delta;
+    }
+    
+    // Get time since last movement
+    int64_t now = k_uptime_get();
+    int64_t time_delta = now - data->last_timestamp;
+    data->last_timestamp = now;
+    
+    // If it's been too long, reset acceleration
+    if (time_delta > 100) {
+        return delta;
+    }
+    
+    // Calculate acceleration using sigmoid function
+    // sigmoid(x) = x / (1 + abs(x))
+    float accel = (float)delta / (1.0f + fabsf((float)delta / config->acceleration_threshold));
+    
+    // Apply acceleration factor
+    accel = accel * config->acceleration_factor;
+    
+    // Scale based on the original direction
+    return (delta >= 0) ? (int8_t)(accel + 0.5f) : (int8_t)(accel - 0.5f);
+}
+
+// Process circular scroll
+static void process_circular_scroll(const struct device *dev, int8_t *dx, int8_t *dy) {
+    const struct pinnacle_config *config = dev->config;
+    struct pinnacle_data *data = dev->data;
+    
+    if (!config->circular_scroll) {
+        return;
+    }
+    
+    // If we're not currently in a circular scroll and a button is pressed, initiate scroll
+    if (!data->in_circular_scroll && data->btn_cache) {
+        data->in_circular_scroll = true;
+        data->scroll_center_x = 0;
+        data->scroll_center_y = 0;
+        data->last_angle = 0;
+        data->scroll_direction = PINNACLE_SCROLL_NONE;
+        *dx = 0;
+        *dy = 0;
+        return;
+    }
+    
+    // If we were in a circular scroll but button was released, exit scroll mode
+    if (data->in_circular_scroll && !data->btn_cache) {
+        data->in_circular_scroll = false;
+        return;
+    }
+    
+    // If we're in circular scroll mode
+    if (data->in_circular_scroll) {
+        // Accumulate movement to track position relative to center
+        data->scroll_center_x += *dx;
+        data->scroll_center_y += *dy;
+        
+        // Calculate distance from center (approximation of sqrt)
+        int16_t abs_x = abs(data->scroll_center_x);
+        int16_t abs_y = abs(data->scroll_center_y);
+        int16_t distance = abs_x > abs_y ? abs_x + abs_y/2 : abs_y + abs_x/2;
+        
+        // If we're outside the minimum radius, process the scroll
+        if (distance >= config->circular_scroll_radius) {
+            // Calculate angle (in 0-255 range, where 0 is right, 64 is top, etc.)
+            int16_t angle = 0;
+            if (abs_x > abs_y) {
+                // More horizontal than vertical
+                angle = data->scroll_center_x > 0 ? 0 : 128;  // Right or left
+                int16_t ratio = (abs_y * 64) / abs_x;
+                if (data->scroll_center_y > 0) {
+                    angle = (angle == 0) ? ratio : 256 - ratio;
+                } else {
+                    angle = (angle == 0) ? 256 - ratio : ratio;
+                }
+            } else {
+                // More vertical than horizontal
+                angle = data->scroll_center_y > 0 ? 64 : 192;  // Up or down
+                int16_t ratio = (abs_x * 64) / abs_y;
+                if (data->scroll_center_x > 0) {
+                    angle = (angle == 64) ? 64 - ratio : 192 + ratio;
+                } else {
+                    angle = (angle == 64) ? 64 + ratio : 192 - ratio;
+                }
+            }
+            angle &= 0xFF;  // Ensure 0-255 range
+            
+            // Determine direction of rotation
+            if (data->last_angle != 0) {
+                int16_t angle_diff = angle - data->last_angle;
+                
+                // Handle wrapping
+                if (angle_diff > 128) angle_diff -= 256;
+                if (angle_diff < -128) angle_diff += 256;
+                
+                // Only process if outside deadzone
+                if (abs(angle_diff) > config->circular_scroll_deadzone) {
+                    // Determine if this is horizontal or vertical scrolling
+                    if (data->scroll_direction == PINNACLE_SCROLL_NONE) {
+                        // Determine scroll direction based on initial movement
+                        data->scroll_direction = (angle >= 32 && angle < 96) || 
+                                                (angle >= 160 && angle < 224) 
+                                              ? PINNACLE_SCROLL_VERTICAL 
+                                              : PINNACLE_SCROLL_HORIZONTAL;
+                    }
+                    
+                    // Map scroll direction and amount
+                    if (data->scroll_direction == PINNACLE_SCROLL_VERTICAL) {
+                        *dx = 0;
+                        *dy = angle_diff > 0 ? -1 : 1;  // Adjust direction as needed
+                    } else {
+                        *dx = angle_diff > 0 ? 1 : -1;  // Adjust direction as needed
+                        *dy = 0;
+                    }
+                } else {
+                    *dx = 0;
+                    *dy = 0;
+                }
+            }
+            
+            data->last_angle = angle;
+        } else {
+            // Not far enough from center yet
+            *dx = 0;
+            *dy = 0;
+        }
+    }
+}
+
 static void pinnacle_report_data(const struct device *dev) {
     const struct pinnacle_config *config = dev->config;
     uint8_t packet[3];
@@ -272,6 +408,21 @@ static void pinnacle_report_data(const struct device *dev) {
         ret = pinnacle_clear_status(dev);
         data->in_int = true;
     }
+
+    // Process circular scrolling if enabled
+    if (config->circular_scroll) {
+        process_circular_scroll(dev, &dx, &dy);
+    }
+    
+    // Apply sigmoid acceleration if enabled
+    if (config->sigmoid_acceleration && !data->in_circular_scroll) {
+        dx = apply_sigmoid_acceleration(dev, dx);
+        dy = apply_sigmoid_acceleration(dev, dy);
+    }
+    
+    // Update last delta values
+    data->last_dx = dx;
+    data->last_dy = dy;
 
     if (!config->no_taps && (btn || data->btn_cache)) {
         for (int i = 0; i < 3; i++) {
@@ -424,6 +575,17 @@ int pinnacle_set_sleep(const struct device *dev, bool enabled) {
 static int pinnacle_init(const struct device *dev) {
     struct pinnacle_data *data = dev->data;
     const struct pinnacle_config *config = dev->config;
+    
+    // Initialize tracking variables
+    data->last_dx = 0;
+    data->last_dy = 0;
+    data->last_timestamp = k_uptime_get();
+    data->in_circular_scroll = false;
+    data->scroll_center_x = 0;
+    data->scroll_center_y = 0;
+    data->last_angle = 0;
+    data->scroll_direction = PINNACLE_SCROLL_NONE;
+    
     int ret;
 
     uint8_t fw_id[2];
@@ -580,6 +742,12 @@ static int pinnacle_pm_action(const struct device *dev, enum pm_device_action ac
         .y_axis_z_min = DT_INST_PROP_OR(n, y_axis_z_min, 4),                                       \
         .sensitivity = DT_INST_ENUM_IDX_OR(n, sensitivity, PINNACLE_SENSITIVITY_1X),               \
         .dr = GPIO_DT_SPEC_GET_OR(DT_DRV_INST(n), dr_gpios, {}),                                   \
+        .sigmoid_acceleration = DT_INST_PROP_OR(n, sigmoid_acceleration, false),                   \
+        .acceleration_factor = DT_INST_PROP_OR(n, acceleration_factor, 2.0),                       \
+        .acceleration_threshold = DT_INST_PROP_OR(n, acceleration_threshold, 5.0),                 \
+        .circular_scroll = DT_INST_PROP_OR(n, circular_scroll, false),                             \
+        .circular_scroll_radius = DT_INST_PROP_OR(n, circular_scroll_radius, 20),                  \
+        .circular_scroll_deadzone = DT_INST_PROP_OR(n, circular_scroll_deadzone, 4),               \
     };                                                                                             \
     PM_DEVICE_DT_INST_DEFINE(n, pinnacle_pm_action);                                               \
     DEVICE_DT_INST_DEFINE(n, pinnacle_init, PM_DEVICE_DT_INST_GET(n), &pinnacle_data_##n,          \

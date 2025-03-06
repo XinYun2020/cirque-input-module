@@ -28,4 +28,27 @@ properties:
   y-axis-z-min:
     type: int
     default: 4
-
+  # New properties for sigmoid acceleration
+  sigmoid-acceleration:
+    type: boolean
+    description: Enable sigmoid acceleration for cursor movement
+  acceleration-factor:
+    type: double
+    default: 2.0
+    description: Multiplier for sigmoid acceleration curve
+  acceleration-threshold:
+    type: double
+    default: 5.0
+    description: Movement threshold to start accelerating
+  # New properties for circular scrolling
+  circular-scroll:
+    type: boolean
+    description: Enable circular scrolling functionality
+  circular-scroll-radius:
+    type: int
+    default: 20
+    description: Minimum radius to activate circular scroll (in relative units)
+  circular-scroll-deadzone:
+    type: int
+    default: 4
+    description: Angular deadzone to prevent accidental scrolling (in degrees)
