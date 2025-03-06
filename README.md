@@ -16,20 +16,10 @@
     circular-scroll-radius = <18>;
     circular-scroll-deadzone = <3>;
     circular-scroll-deadzone-radius = <15>;
-    circular-scroll-direction = "inverted";  // Clockwise = scroll up, counter-clockwise = scroll down
+    // circular-scroll-direction = "inverted";  // Clockwise = scroll up, counter-clockwise = scroll down
+    circular-scroll-key-mode;
+    circular-scroll-key-clockwise = <KEY_VOLUMEUP>;
+    circular-scroll-key-counterclockwise = <KEY_VOLUMEDOWN>;
 
 };
 ```
-
-- Circular Scrolling
-    Activates when a button is held down and the finger moves in a circular pattern
-    Detects the direction of rotation (clockwise or counterclockwise)
-    Determines whether to scroll horizontally or vertically based on the initial movement direction
-    Translates the circular motion into appropriate scroll events
-
-- sigmoid-acceleration
-    - Tracks finger position relative to the starting point
-    - Calculates the angle of the finger position
-    - Compares consecutive angles to determine rotation direction
-    - Applies a deadzone to prevent accidental scrolling from small movements
-    - Converts the angular change into scroll events

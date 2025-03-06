@@ -341,22 +341,46 @@ static void process_circular_scroll(const struct device *dev, int8_t *dx, int8_t
                 
                 // Only process if outside deadzone
                 if (abs(angle_diff) > config->circular_scroll_deadzone) {
-                    // Determine if this is horizontal or vertical scrolling
-                    if (data->scroll_direction == PINNACLE_SCROLL_NONE) {
-                        // Determine scroll direction based on initial movement
-                        data->scroll_direction = (angle >= 32 && angle < 96) || 
-                                                (angle >= 160 && angle < 224) 
-                                              ? PINNACLE_SCROLL_VERTICAL 
-                                              : PINNACLE_SCROLL_HORIZONTAL;
+                    // Get the direction (positive = clockwise, negative = counterclockwise)
+                    bool is_clockwise = angle_diff > 0;
+                    if (config->circular_scroll_invert_direction) {
+                        is_clockwise = !is_clockwise;
                     }
                     
-                    // Map scroll direction and amount
-                    if (data->scroll_direction == PINNACLE_SCROLL_VERTICAL) {
+                    // In key mode, send key events instead of scroll events
+                    if (config->circular_scroll_key_mode) {
+                        // Reset scroll values
                         *dx = 0;
-                        *dy = angle_diff > 0 ? -1 : 1;  // Adjust direction as needed
-                    } else {
-                        *dx = angle_diff > 0 ? 1 : -1;  // Adjust direction as needed
                         *dy = 0;
+                        
+                        // Send appropriate key event
+                        if (is_clockwise && config->circular_scroll_key_clockwise != 0) {
+                            input_report_key(dev, config->circular_scroll_key_clockwise, 1, false, K_FOREVER);
+                            input_report_key(dev, config->circular_scroll_key_clockwise, 0, true, K_FOREVER);
+                        } else if (!is_clockwise && config->circular_scroll_key_counterclockwise != 0) {
+                            input_report_key(dev, config->circular_scroll_key_counterclockwise, 1, false, K_FOREVER);
+                            input_report_key(dev, config->circular_scroll_key_counterclockwise, 0, true, K_FOREVER);
+                        }
+                        
+                        // Reset last angle to avoid repeat triggers too quickly
+                        angle_diff = 0;
+                    } else {
+                        // Normal scroll mode - determine direction based on initial movement
+                        if (data->scroll_direction == PINNACLE_SCROLL_NONE) {
+                            data->scroll_direction = (angle >= 32 && angle < 96) || 
+                                                    (angle >= 160 && angle < 224) 
+                                                  ? PINNACLE_SCROLL_VERTICAL 
+                                                  : PINNACLE_SCROLL_HORIZONTAL;
+                        }
+                        
+                        // Map scroll direction and amount
+                        if (data->scroll_direction == PINNACLE_SCROLL_VERTICAL) {
+                            *dx = 0;
+                            *dy = angle_diff > 0 ? -1 : 1;  // Adjust direction as needed
+                        } else {
+                            *dx = angle_diff > 0 ? 1 : -1;  // Adjust direction as needed
+                            *dy = 0;
+                        }
                     }
                 } else {
                     *dx = 0;
@@ -760,6 +784,9 @@ static int pinnacle_pm_action(const struct device *dev, enum pm_device_action ac
         .circular_scroll_deadzone = DT_INST_PROP_OR(n, circular_scroll_deadzone, 4),               \
         .circular_scroll_deadzone_radius = DT_INST_PROP_OR(n, circular_scroll_deadzone_radius, 15), \
         .circular_scroll_invert_direction = DT_INST_PROP_OR(n, circular_scroll_direction, 0) == PINNACLE_DIRECTION_INVERTED, \
+        .circular_scroll_key_mode = DT_INST_PROP_OR(n, circular_scroll_key_mode, false),           \
+        .circular_scroll_key_clockwise = DT_INST_PROP_OR(n, circular_scroll_key_clockwise, 0),     \
+        .circular_scroll_key_counterclockwise = DT_INST_PROP_OR(n, circular_scroll_key_counterclockwise, 0), \
     };                                                                                             \
     PM_DEVICE_DT_INST_DEFINE(n, pinnacle_pm_action);                                               \
     DEVICE_DT_INST_DEFINE(n, pinnacle_init, PM_DEVICE_DT_INST_GET(n), &pinnacle_data_##n,          \

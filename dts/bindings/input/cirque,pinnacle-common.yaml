@@ -28,7 +28,7 @@ properties:
   y-axis-z-min:
     type: int
     default: 4
-  # New properties for sigmoid acceleration
+  # for sigmoid acceleration
   sigmoid-acceleration:
     type: boolean
     description: Enable sigmoid acceleration for cursor movement
@@ -40,7 +40,7 @@ properties:
     type: double
     default: 5.0
     description: Movement threshold to start accelerating
-  # New properties for circular scrolling
+  # for circular scrolling
   circular-scroll:
     type: boolean
     description: Enable circular scrolling functionality
@@ -52,3 +52,27 @@ properties:
     type: int
     default: 4
     description: Angular deadzone to prevent accidental scrolling (in degrees)
+  circular-scroll-deadzone-radius:
+    type: int
+    default: 15
+    description: Center deadzone radius for circular scrolling (in mm)
+  circular-scroll-direction:
+    type: int
+    default: 0
+    enum:
+      - 0
+      - 1
+    description: Direction of scrolling (0=normal, 1=inverted)
+  # for circular scroll key mapping
+  circular-scroll-key-mode:
+    type: boolean
+    default: false
+    description: When true, send key events instead of scroll events
+  circular-scroll-key-clockwise:
+    type: int
+    default: 0
+    description: Key code to send when circular scrolling clockwise
+  circular-scroll-key-counterclockwise:
+    type: int
+    default: 0
+    description: Key code to send when circular scrolling counterclockwise

@@ -72,13 +72,34 @@
 #define PINNACLE_PACKET0_X_SIGN BIT(4)   // X delta sign
 #define PINNACLE_PACKET0_Y_SIGN BIT(5)   // Y delta sign
 
+// circular scroll
+#define PINNACLE_CIRCULAR_SCROLL_ENABLE BIT(0)
+#define PINNACLE_SCROLL_NONE 0
+#define PINNACLE_SCROLL_HORIZONTAL 1
+#define PINNACLE_SCROLL_VERTICAL 2
+
 struct pinnacle_data {
     uint8_t btn_cache;
     bool in_int;
     const struct device *dev;
     struct gpio_callback gpio_cb;
     struct k_work work;
-};
+
+    // Acceleration tracking
+    int32_t last_dx;
+    int32_t last_dy;
+    int64_t last_timestamp;
+    
+    // Circular scroll tracking
+    bool in_circular_scroll;
+    int16_t scroll_center_x;
+    int16_t scroll_center_y;
+    int16_t last_angle;
+    enum pinnacle_scroll_direction {
+        PINNACLE_SCROLL_NONE,
+        PINNACLE_SCROLL_VERTICAL,
+        PINNACLE_SCROLL_HORIZONTAL
+    } scroll_direction;};
 
 enum pinnacle_sensitivity {
     PINNACLE_SENSITIVITY_1X,
@@ -104,6 +125,24 @@ struct pinnacle_config {
     enum pinnacle_sensitivity sensitivity;
     uint8_t x_axis_z_min, y_axis_z_min;
     const struct gpio_dt_spec dr;
+
+    // Sigmoid acceleration parameters
+    bool sigmoid_acceleration;
+    float acceleration_factor;  // Multiplier for the acceleration
+    float acceleration_threshold; // Movement threshold to start accelerating
+    
+    // Circular scroll parameters
+    bool circular_scroll;
+    uint8_t circular_scroll_radius;  // Minimum radius to activate circular scroll
+    uint8_t circular_scroll_deadzone; // Angular deadzone to prevent accidental scrolling
+    uint16_t circular_scroll_deadzone_radius; // Deadzone radius
+    bool circular_scroll_invert_direction;    // Invert scroll direction
+
+    // Circular scroll key mapping
+    bool circular_scroll_key_mode;
+    uint16_t circular_scroll_key_clockwise;
+    uint16_t circular_scroll_key_counterclockwise;
+
 };
 
 int pinnacle_set_sleep(const struct device *dev, bool enabled);
