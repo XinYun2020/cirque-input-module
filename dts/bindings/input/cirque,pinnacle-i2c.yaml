@@ -4,3 +4,31 @@ description: |
 compatible: "cirque,pinnacle"
 
 include: ["i2c-device.yaml", "cirque,pinnacle-common.yaml"]
+
+properties:
+  reg:
+    required: true
+    
+  irq-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      Interrupt pin.
+      
+      The interrupt pin of GlidePoint is active-low.
+
+  circular-scroll-radius:
+    type: int
+    default: 40
+    description: |
+      Radius threshold in pixels to activate circular scrolling.
+      
+      A larger value requires moving further from the initial touch
+      point to activate the circular scrolling mode.
+      
+  circular-scroll-deadzone:
+    type: int
+    default: 10
+    description: |
+      Inner deadzone radius in pixels to prevent accidental activation
+      of circular scrolling.

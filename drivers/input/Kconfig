@@ -26,3 +26,49 @@ config ZMK_INPUT_PINNACLE_IDLE_SLEEPER
 endif
 
 endif
+
+/* FIXME */
+
+# Copyright (c) 2025 Your Name
+# SPDX-License-Identifier: Apache-2.0
+
+config CIRQUE_GLIDEPOINT
+	bool "Cirque GlidePoint touchpad input driver"
+	default y
+	depends on DT_HAS_CIRQUE_GLIDEPOINT_I2C_ENABLED
+	select I2C
+	help
+	  Enable driver for Cirque GlidePoint touchpad sensor with
+	  mouse-like relative input events.
+
+if CIRQUE_GLIDEPOINT
+
+config CIRQUE_GLIDEPOINT_LOG_LEVEL
+	int "Cirque GlidePoint driver log level"
+	depends on LOG
+	default 1
+	help
+	  Sets log level for Cirque GlidePoint driver.
+	  
+	  Levels are:
+	  - 0 OFF, do not write
+	  - 1 ERROR, only write LOG_ERR
+	  - 2 WARNING, write LOG_WRN in addition to previous level
+	  - 3 INFO, write LOG_INF in addition to previous levels
+	  - 4 DEBUG, write LOG_DBG in addition to previous levels
+
+config CIRQUE_GLIDEPOINT_CIRCULAR_SCROLL
+	bool "Enable circular scrolling on edges of touchpad"
+	default y
+	help
+	  Enables circular scrolling when moving finger in a circular
+	  motion around the edge of the touchpad.
+
+config CIRQUE_GLIDEPOINT_SIGMOID_ACCEL
+	bool "Enable sigmoid acceleration for cursor movement"
+	default y
+	help
+	  Enables advanced sigmoid-based pointer acceleration for
+	  more precise cursor control.
+
+endif # CIRQUE_GLIDEPOINT
